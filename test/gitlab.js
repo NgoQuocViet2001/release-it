@@ -213,6 +213,42 @@ describe('GitLab', () => {
     );
   });
 
+  test('should throw with the message of a failed request', async t => {
+    const options = { git: { pushRepo: 'https://gitlab.com/user/repo' }, gitlab: { tokenRef, release: true } };
+    const gitlab = await factory(GitLab, { options });
+    t.mock.method(gitlab, 'getLatestVersion', () => Promise.resolve('2.0.0'));
+
+    interceptUser(api);
+    interceptCollaborator(api);
+    api.post('/projects/user%2Frepo/releases', { status: 409, body: { message: 'Release already exists' } });
+
+    await assert.rejects(runTasks(gitlab), /Release already exists/);
+  });
+
+  test('should throw with the validation errors of a failed request', async t => {
+    const options = { git: { pushRepo: 'https://gitlab.com/user/repo' }, gitlab: { tokenRef, release: true } };
+    const gitlab = await factory(GitLab, { options });
+    t.mock.method(gitlab, 'getLatestVersion', () => Promise.resolve('2.0.0'));
+
+    interceptUser(api);
+    interceptCollaborator(api);
+    api.post('/projects/user%2Frepo/releases', { status: 400, body: { message: { tag_name: ['is invalid'] } } });
+
+    await assert.rejects(runTasks(gitlab), /{"tag_name":\["is invalid"\]}/);
+  });
+
+  test('should throw with the error of a failed request', async t => {
+    const options = { git: { pushRepo: 'https://gitlab.com/user/repo' }, gitlab: { tokenRef, release: true } };
+    const gitlab = await factory(GitLab, { options });
+    t.mock.method(gitlab, 'getLatestVersion', () => Promise.resolve('2.0.0'));
+
+    interceptUser(api);
+    interceptCollaborator(api);
+    api.post('/projects/user%2Frepo/releases', { status: 400, body: { error: 'tag_name is missing' } });
+
+    await assert.rejects(runTasks(gitlab), /tag_name is missing/);
+  });
+
   test('should release to self-managed host', async t => {
     const host = 'https://gitlab.example.org';
     const options = {
